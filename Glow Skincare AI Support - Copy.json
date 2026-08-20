@@ -1,0 +1,786 @@
+{
+  "name": "Glow Skincare AI Support",
+  "nodes": [
+    {
+      "parameters": {
+        "pollTimes": {
+          "item": [
+            {
+              "mode": "everyMinute"
+            },
+            {
+              "mode": "everyMinute"
+            }
+          ]
+        },
+        "filters": {}
+      },
+      "id": "b92f9f6e-2723-4e08-b9a2-9109fa417f81",
+      "name": "Gmail Trigger",
+      "type": "n8n-nodes-base.gmailTrigger",
+      "typeVersion": 1.4,
+      "position": [
+        -608,
+        -144
+      ],
+      "credentials": {
+        "gmailOAuth2": {
+          "id": "BCHR8jimv3qMk5Gl",
+          "name": "Gmail account 4"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "promptType": "define",
+        "text": "=From: {{ $json.senderEmail }}\nSubject: {{ $('Gmail Trigger').item.json.Subject }}\nMessage: {{ $('Gmail Trigger').item.json.snippet }}",
+        "hasOutputParser": true,
+        "options": {}
+      },
+      "id": "0d99ffbc-2b78-4408-974d-f1fb44798dd9",
+      "name": "AI Agent",
+      "type": "@n8n/n8n-nodes-langchain.agent",
+      "typeVersion": 3.1,
+      "position": [
+        96,
+        -432
+      ]
+    },
+    {
+      "parameters": {
+        "jsCode": "const clean = (text) => {\n  if (typeof text !== 'string') return text;\n  let t = text;\n  t = t.split('\\\\r\\\\n').join('\\n');\n  t = t.split('\\\\n').join('\\n');\n  t = t.split('\\\\t').join(' ');\n  t = t.replace(/\\*+/g, '');\n  t = t.replace(/^\\s*#{1,6}\\s*/gm, '');\n  t = t.replace(/^\\s*>\\s?/gm, '');\n  t = t.replace(/\\n{3,}/g, '\\n\\n');\n  return t.trim();\n};\nfor (const item of $input.all()) {\n  const out = (item.json && item.json.output) ? item.json.output : {};\n  item.json.output = Object.assign({}, out, { draft_reply: clean(out.draft_reply) });\n}\nreturn $input.all();\n"
+      },
+      "id": "c1e2a3n4-0000-4000-8000-000000000001",
+      "name": "Clean Reply",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        336,
+        -432
+      ]
+    },
+    {
+      "parameters": {
+        "modelName": "models/gemini-3.5-flash-lite",
+        "options": {}
+      },
+      "id": "23aa5d23-dbb5-4f13-ba9c-8aa1f298b979",
+      "name": "Google Gemini Chat Model",
+      "type": "@n8n/n8n-nodes-langchain.lmChatGoogleGemini",
+      "typeVersion": 1.1,
+      "position": [
+        -64,
+        160
+      ],
+      "credentials": {
+        "googlePalmApi": {
+          "id": "7opJ4WeiCsm9db1K",
+          "name": "Google Gemini(PaLM) Api account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "schemaType": "manual",
+        "inputSchema": "{\n  \"type\": \"object\",\n  \"properties\": {\n    \"category\": { \"type\": \"string\", \"enum\": [\"order\", \"faq\", \"complaint\", \"off_topic\"] },\n    \"confidence\": { \"type\": \"string\", \"enum\": [\"high\", \"medium\", \"low\"] },\n    \"draft_reply\": { \"type\": \"string\" }\n  },\n  \"required\": [\"category\", \"confidence\", \"draft_reply\"]\n}"
+      },
+      "id": "5a1baee6-979b-474c-8fa3-ef479f3be45c",
+      "name": "Structured Output Parser",
+      "type": "@n8n/n8n-nodes-langchain.outputParserStructured",
+      "typeVersion": 1.3,
+      "position": [
+        560,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "assignments": {
+          "assignments": [
+            {
+              "id": "45aefff9-6127-4d35-b2b1-5a4c700e66f6",
+              "name": "senderEmail",
+              "value": "={{ $json.From.match(/<(.+)>/)?.[1] || $json.From }}",
+              "type": "string"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "aea67fad-d749-4539-b120-30f1093f47b6",
+      "name": "Edit Fields",
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.5,
+      "position": [
+        -272,
+        -96
+      ]
+    },
+    {
+      "parameters": {
+        "rules": {
+          "values": [
+            {
+              "conditions": {
+                "options": {
+                  "caseSensitive": true,
+                  "leftValue": "",
+                  "typeValidation": "strict",
+                  "version": 3
+                },
+                "conditions": [
+                  {
+                    "leftValue": "={{ $json.output.category }}",
+                    "rightValue": "order",
+                    "operator": {
+                      "type": "string",
+                      "operation": "equals"
+                    },
+                    "id": "8b3ea086-2336-4b68-9593-d7e5ecf2b820"
+                  }
+                ],
+                "combinator": "and"
+              }
+            },
+            {
+              "conditions": {
+                "options": {
+                  "caseSensitive": true,
+                  "leftValue": "",
+                  "typeValidation": "strict",
+                  "version": 3
+                },
+                "conditions": [
+                  {
+                    "id": "dc1a8d40-bdb1-47e7-bf06-a1cddbeae299",
+                    "leftValue": "={{ $json.output.category }}",
+                    "rightValue": "faq",
+                    "operator": {
+                      "type": "string",
+                      "operation": "equals",
+                      "name": "filter.operator.equals"
+                    }
+                  }
+                ],
+                "combinator": "and"
+              }
+            },
+            {
+              "conditions": {
+                "options": {
+                  "caseSensitive": true,
+                  "leftValue": "",
+                  "typeValidation": "strict",
+                  "version": 3
+                },
+                "conditions": [
+                  {
+                    "id": "6357d14a-fb1b-4859-a93a-f4e8c2ec5770",
+                    "leftValue": "={{ $json.output.category }}",
+                    "rightValue": "complaint",
+                    "operator": {
+                      "type": "string",
+                      "operation": "equals",
+                      "name": "filter.operator.equals"
+                    }
+                  }
+                ],
+                "combinator": "and"
+              }
+            },
+            {
+              "conditions": {
+                "options": {
+                  "caseSensitive": true,
+                  "leftValue": "",
+                  "typeValidation": "strict",
+                  "version": 3
+                },
+                "conditions": [
+                  {
+                    "id": "8ed5fc0d-6c47-4a9c-a1d7-9ac6d0f933e7",
+                    "leftValue": "={{ $json.output.category }}",
+                    "rightValue": "off_topic",
+                    "operator": {
+                      "type": "string",
+                      "operation": "equals",
+                      "name": "filter.operator.equals"
+                    }
+                  }
+                ],
+                "combinator": "and"
+              }
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "5d215936-d122-4fdc-a79f-c9adefbafb16",
+      "name": "Switch",
+      "type": "n8n-nodes-base.switch",
+      "typeVersion": 3.4,
+      "position": [
+        576,
+        -400
+      ]
+    },
+    {
+      "parameters": {
+        "sendTo": "={{ $('Edit Fields').item.json.senderEmail }}",
+        "subject": "=Re: {{ $('Gmail Trigger').item.json.Subject }}",
+        "emailType": "text",
+        "message": "={{ $json.output.draft_reply }}",
+        "options": {
+          "appendAttribution": false
+        }
+      },
+      "id": "8d348769-f673-4ca8-b312-3b176974d164",
+      "name": "Send a message",
+      "type": "n8n-nodes-base.gmail",
+      "typeVersion": 2.2,
+      "position": [
+        896,
+        -320
+      ],
+      "webhookId": "bfd288e7-2c56-4ca8-b4f1-00c828d18a46",
+      "credentials": {
+        "gmailOAuth2": {
+          "id": "BCHR8jimv3qMk5Gl",
+          "name": "Gmail account 4"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "sendTo": "={{ $('Edit Fields').item.json.senderEmail }}",
+        "subject": "=Re: {{ $('Gmail Trigger').item.json.Subject }}",
+        "emailType": "text",
+        "message": "={{ $json.output.draft_reply }}",
+        "options": {
+          "appendAttribution": false
+        }
+      },
+      "id": "bd44ef0d-f20b-44f0-9f95-8e155216a2f1",
+      "name": "Send a message2",
+      "type": "n8n-nodes-base.gmail",
+      "typeVersion": 2.2,
+      "position": [
+        928,
+        -96
+      ],
+      "webhookId": "0d96b7bc-ff2f-496d-bf92-9e17278796e4",
+      "credentials": {
+        "gmailOAuth2": {
+          "id": "BCHR8jimv3qMk5Gl",
+          "name": "Gmail account 4"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "sendTo": "={{ $('Edit Fields').item.json.senderEmail }}",
+        "subject": "=Re: {{ $('Gmail Trigger').item.json.Subject }}",
+        "message": "={{ $json.output.draft_reply }}",
+        "options": {
+          "appendAttribution": false
+        }
+      },
+      "id": "89568d14-877d-4820-8c7f-25f4a5831115",
+      "name": "Send a message1",
+      "type": "n8n-nodes-base.gmail",
+      "typeVersion": 2.2,
+      "position": [
+        784,
+        256
+      ],
+      "webhookId": "4b9f3d38-dca8-45e9-9172-021d48215815",
+      "credentials": {
+        "gmailOAuth2": {
+          "id": "BCHR8jimv3qMk5Gl",
+          "name": "Gmail account 4"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "operation": "create",
+        "base": {
+          "__rl": true,
+          "value": "appyMd3jQB2W6lOs1",
+          "mode": "list",
+          "cachedResultName": " Glow Support",
+          "cachedResultUrl": "https://airtable.com/appyMd3jQB2W6lOs1"
+        },
+        "table": {
+          "__rl": true,
+          "value": "tbldPEucEdptgY3c6",
+          "mode": "list",
+          "cachedResultName": "Table 1: Tickets",
+          "cachedResultUrl": "https://airtable.com/appyMd3jQB2W6lOs1/tbldPEucEdptgY3c6"
+        },
+        "columns": {
+          "mappingMode": "defineBelow",
+          "value": {
+            "Customer Email": "={{ $('Edit Fields').item.json.senderEmail }}",
+            "Message": "={{ $('Gmail Trigger').item.json.snippet }}",
+            "AI Confidence": "={{ $('AI Agent').item.json.output.confidence.charAt(0).toUpperCase() + $('AI Agent').item.json.output.confidence.slice(1) }}",
+            "AI Draft Reply": "={{ $('Clean Reply').item.json.output.draft_reply }}",
+            "Category": "Order",
+            "Status": "=Auto-Resolved"
+          },
+          "matchingColumns": [],
+          "attemptToConvertTypes": false,
+          "convertFieldsToString": false
+        },
+        "options": {
+          "typecast": true
+        }
+      },
+      "id": "163dac54-cf8d-420f-8e61-0ec4dc3ec778",
+      "name": "Create a record",
+      "type": "n8n-nodes-base.airtable",
+      "typeVersion": 2.2,
+      "position": [
+        1104,
+        -320
+      ],
+      "credentials": {
+        "airtableTokenApi": {
+          "id": "jFXSA33tqKT4HQUq",
+          "name": "Airtable Personal Access Token account 2"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "operation": "create",
+        "base": {
+          "__rl": true,
+          "value": "appyMd3jQB2W6lOs1",
+          "mode": "list",
+          "cachedResultName": " Glow Support",
+          "cachedResultUrl": "https://airtable.com/appyMd3jQB2W6lOs1"
+        },
+        "table": {
+          "__rl": true,
+          "value": "tbldPEucEdptgY3c6",
+          "mode": "list",
+          "cachedResultName": "Table 1: Tickets",
+          "cachedResultUrl": "https://airtable.com/appyMd3jQB2W6lOs1/tbldPEucEdptgY3c6"
+        },
+        "columns": {
+          "mappingMode": "defineBelow",
+          "value": {
+            "Customer Email": "={{ $('Edit Fields').item.json.senderEmail }}",
+            "Message": "={{ $('Gmail Trigger').item.json.snippet }}",
+            "AI Confidence": "={{ $('AI Agent').item.json.output.confidence.charAt(0).toUpperCase() + $('AI Agent').item.json.output.confidence.slice(1) }}",
+            "AI Draft Reply": "={{ $('Clean Reply').item.json.output.draft_reply }}",
+            "Status": "Auto-Resolved",
+            "Category": "FAQ"
+          },
+          "matchingColumns": [],
+          "attemptToConvertTypes": false,
+          "convertFieldsToString": false
+        },
+        "options": {
+          "typecast": true
+        }
+      },
+      "id": "87e7b263-fe38-4a6b-a5e7-0e57108472e3",
+      "name": "Create a record1",
+      "type": "n8n-nodes-base.airtable",
+      "typeVersion": 2.2,
+      "position": [
+        1216,
+        -128
+      ],
+      "credentials": {
+        "airtableTokenApi": {
+          "id": "jFXSA33tqKT4HQUq",
+          "name": "Airtable Personal Access Token account 2"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "select": "channel",
+        "channelId": {
+          "__rl": true,
+          "value": "C0BNQRAG9L2",
+          "mode": "id"
+        },
+        "text": "=🚨 New complaint needs review\nFrom: {{ $('Edit Fields').item.json.senderEmail }}\nMessage: {{ $('AI Agent').item.json.output.draft_reply }}",
+        "otherOptions": {}
+      },
+      "id": "37dffb13-4e1c-41d8-8124-fee8d4095b41",
+      "name": "Escalate to slack",
+      "type": "n8n-nodes-base.slack",
+      "typeVersion": 2.5,
+      "position": [
+        944,
+        80
+      ],
+      "webhookId": "c570020e-c213-4b21-b8f4-b839cd009835",
+      "credentials": {
+        "slackApi": {
+          "id": "BAoadSqsOKNmsmsA",
+          "name": "Slack account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "operation": "create",
+        "base": {
+          "__rl": true,
+          "value": "appyMd3jQB2W6lOs1",
+          "mode": "list",
+          "cachedResultName": " Glow Support",
+          "cachedResultUrl": "https://airtable.com/appyMd3jQB2W6lOs1"
+        },
+        "table": {
+          "__rl": true,
+          "value": "tbldPEucEdptgY3c6",
+          "mode": "list",
+          "cachedResultName": "Table 1: Tickets",
+          "cachedResultUrl": "https://airtable.com/appyMd3jQB2W6lOs1/tbldPEucEdptgY3c6"
+        },
+        "columns": {
+          "mappingMode": "defineBelow",
+          "value": {
+            "Customer Email": "={{ $('Edit Fields').item.json.senderEmail }}",
+            "Message": "={{ $('Gmail Trigger').item.json.snippet }}",
+            "AI Confidence": "={{ $('AI Agent').item.json.output.confidence.charAt(0).toUpperCase() + $('AI Agent').item.json.output.confidence.slice(1) }}",
+            "AI Draft Reply": "={{ $('Clean Reply').item.json.output.draft_reply }}",
+            "Status": "Escalated",
+            "Category": "Complaint"
+          },
+          "matchingColumns": [],
+          "attemptToConvertTypes": false,
+          "convertFieldsToString": false
+        },
+        "options": {
+          "typecast": true
+        }
+      },
+      "id": "089fe743-6ffa-4638-8299-5932e2a6087c",
+      "name": "Create a record2",
+      "type": "n8n-nodes-base.airtable",
+      "typeVersion": 2.2,
+      "position": [
+        1184,
+        96
+      ],
+      "credentials": {
+        "airtableTokenApi": {
+          "id": "jFXSA33tqKT4HQUq",
+          "name": "Airtable Personal Access Token account 2"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "operation": "create",
+        "base": {
+          "__rl": true,
+          "value": "appyMd3jQB2W6lOs1",
+          "mode": "list",
+          "cachedResultName": " Glow Support",
+          "cachedResultUrl": "https://airtable.com/appyMd3jQB2W6lOs1"
+        },
+        "table": {
+          "__rl": true,
+          "value": "tbldPEucEdptgY3c6",
+          "mode": "list",
+          "cachedResultName": "Table 1: Tickets",
+          "cachedResultUrl": "https://airtable.com/appyMd3jQB2W6lOs1/tbldPEucEdptgY3c6"
+        },
+        "columns": {
+          "mappingMode": "defineBelow",
+          "value": {
+            "Customer Email": "={{ $('Edit Fields').item.json.senderEmail }}",
+            "Message": "={{ $('Gmail Trigger').item.json.snippet }}",
+            "AI Confidence": "={{ $('AI Agent').item.json.output.confidence.charAt(0).toUpperCase() + $('AI Agent').item.json.output.confidence.slice(1) }}",
+            "AI Draft Reply": "={{ $('Clean Reply').item.json.output.draft_reply }}",
+            "Status": "Declined",
+            "Category": "Off-topic"
+          },
+          "matchingColumns": [],
+          "attemptToConvertTypes": false,
+          "convertFieldsToString": false
+        },
+        "options": {
+          "typecast": true
+        }
+      },
+      "id": "4ef1e220-a305-4906-9f8a-72a79b10d6e1",
+      "name": "Create a record3",
+      "type": "n8n-nodes-base.airtable",
+      "typeVersion": 2.2,
+      "position": [
+        1200,
+        256
+      ],
+      "credentials": {
+        "airtableTokenApi": {
+          "id": "jFXSA33tqKT4HQUq",
+          "name": "Airtable Personal Access Token account 2"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "descriptionType": "manual",
+        "toolDescription": "Use this to look up answers to skincare product questions, shipping, returns, and ingredients. Only answer using information returned by this tool, never from general knowledge.",
+        "operation": "search",
+        "base": {
+          "__rl": true,
+          "value": "appyMd3jQB2W6lOs1",
+          "mode": "list",
+          "cachedResultName": " Glow Support",
+          "cachedResultUrl": "https://airtable.com/appyMd3jQB2W6lOs1"
+        },
+        "table": {
+          "__rl": true,
+          "value": "tblYgdzUbw15CdVWu",
+          "mode": "list",
+          "cachedResultName": "Table 3: FAQ Knowledge Base",
+          "cachedResultUrl": "https://airtable.com/appyMd3jQB2W6lOs1/tblYgdzUbw15CdVWu"
+        },
+        "options": {}
+      },
+      "id": "8040d0ac-aac5-4b9e-bec9-e0b8685a5abe",
+      "name": "Search_FAQ_Knowledge_Base",
+      "type": "n8n-nodes-base.airtableTool",
+      "typeVersion": 2.2,
+      "position": [
+        336,
+        48
+      ],
+      "credentials": {
+        "airtableTokenApi": {
+          "id": "jFXSA33tqKT4HQUq",
+          "name": "Airtable Personal Access Token account 2"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "descriptionType": "manual",
+        "toolDescription": "Use this to look up a customer's order status, tracking number, and order details by matching their email address or order ID mentioned in the message. Only use this tool for questions specifically about an existing order. Do not guess or make up order information if no matching record is found; tell the customer you could not locate that order.",
+        "operation": "search",
+        "base": {
+          "__rl": true,
+          "value": "appyMd3jQB2W6lOs1",
+          "mode": "list",
+          "cachedResultName": " Glow Support",
+          "cachedResultUrl": "https://airtable.com/appyMd3jQB2W6lOs1"
+        },
+        "table": {
+          "__rl": true,
+          "value": "tbl2pyj8IuStYdm06",
+          "mode": "list",
+          "cachedResultName": "Table 2: Orders",
+          "cachedResultUrl": "https://airtable.com/appyMd3jQB2W6lOs1/tbl2pyj8IuStYdm06"
+        },
+        "filterByFormula": "={Customer Email} = '{{ $fromAI(\"email\") }}'",
+        "options": {}
+      },
+      "id": "85999b00-fdc9-4668-9af0-93fb7e6deeeb",
+      "name": "Search_Orders_Table",
+      "type": "n8n-nodes-base.airtableTool",
+      "typeVersion": 2.2,
+      "position": [
+        176,
+        128
+      ],
+      "credentials": {
+        "airtableTokenApi": {
+          "id": "jFXSA33tqKT4HQUq",
+          "name": "Airtable Personal Access Token account 2"
+        }
+      }
+    }
+  ],
+  "pinData": {},
+  "connections": {
+    "Gmail Trigger": {
+      "main": [
+        [
+          {
+            "node": "Edit Fields",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Google Gemini Chat Model": {
+      "ai_languageModel": [
+        [
+          {
+            "node": "AI Agent",
+            "type": "ai_languageModel",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Structured Output Parser": {
+      "ai_outputParser": [
+        [
+          {
+            "node": "AI Agent",
+            "type": "ai_outputParser",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Edit Fields": {
+      "main": [
+        [
+          {
+            "node": "AI Agent",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "AI Agent": {
+      "main": [
+        [
+          {
+            "node": "Clean Reply",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Switch": {
+      "main": [
+        [
+          {
+            "node": "Send a message",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Send a message2",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Escalate to slack",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Send a message1",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Send a message": {
+      "main": [
+        [
+          {
+            "node": "Create a record",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Send a message2": {
+      "main": [
+        [
+          {
+            "node": "Create a record1",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Escalate to slack": {
+      "main": [
+        [
+          {
+            "node": "Create a record2",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Send a message1": {
+      "main": [
+        [
+          {
+            "node": "Create a record3",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Search_FAQ_Knowledge_Base": {
+      "ai_tool": [
+        [
+          {
+            "node": "AI Agent",
+            "type": "ai_tool",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Search_Orders_Table": {
+      "ai_tool": [
+        [
+          {
+            "node": "AI Agent",
+            "type": "ai_tool",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Clean Reply": {
+      "main": [
+        [
+          {
+            "node": "Switch",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "active": false,
+  "settings": {
+    "executionOrder": "v1",
+    "binaryMode": "separate",
+    "availableInMCP": false
+  },
+  "versionId": "a43b74cf-8aa9-400d-b7ba-86db413a801c",
+  "meta": {
+    "templateCredsSetupCompleted": true,
+    "instanceId": "c73e3f264f2f1901bb83ef00c52a93569f188526c2535a347479bc6e6094e6c0"
+  },
+  "nodeGroups": [],
+  "id": "WFHlk9nK1UPeqIi1",
+  "tags": []
+}
